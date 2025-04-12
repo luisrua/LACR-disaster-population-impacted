@@ -13,7 +13,7 @@ library(openxlsx)
 
 # Paths 
 layers <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/layers/"
-results <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/tables/"
+tables <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/tables/"
 
 # 1. IMPORT LAYERS =============================================================
 # Admin boundaries
@@ -94,6 +94,8 @@ tpop_impact <- tpop_impact %>%
     rwind_pol_per = (rwind_pol / tpop) * 100,
     rflood_pol_per = (rflood_pol / tpop) * 100
   )
+
+write.csv(tpop_impact, paste0(tables, "total_pop_impact.csv"))
 
 # Lopp over the 4 population rasters
 # Reshape table, bidwith tpop and calculate % 
