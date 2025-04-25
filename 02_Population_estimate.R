@@ -31,7 +31,7 @@ ypop <- rast(paste0(layers,"population/rep_crop_wpop_youth_sum.tif_resamp.tif"))
 wfagpop <- rast(paste0(layers,"population/rep_crop_wpop_wfag_sum.tif_resamp.tif"))
 oldpop <- rast(paste0(layers,"population/rep_crop_wpop_old_sum.tif_resamp.tif"))
 
-# 2. ESTIMATE POPULATION WITHIN IMPACT ZONES BY COUNTRY
+# 2. ESTIMATE POPULATION WITHIN IMPACT ZONES BY COUNTRY ========================
 
 # Named list of your three impact zones
 impact_zones <- list(
@@ -169,6 +169,8 @@ print(pop_wide)
 # Merge with total population 
 tpop_impact <- merge (pop_wide, wide_impactpop, by = "ISO3")
 
+# 3. TABLES AND GRAPHS ========================================================
+# 3.1 BASIC TABLES ----
 # Calculate percentages of population impacted for all the population targets
 tpop_impact_per <- tpop_impact %>% 
   mutate(
@@ -186,7 +188,75 @@ tpop_impact_per <- tpop_impact %>%
     oldpop_rflood_per = (oldpop_rflood_pol  / oldpop) * 100
   )
 
-
+write.csv(tpop_impact, paste0(tables, "tpop_impact.csv"))
 write.csv(tpop_impact_per, paste0(tables, "tpop_impact_per.csv"))
 
+tot_impact_car <- tpop_impact %>% 
+  filter(ISO3 %in% car_count_list)
+tot_impac_lat <- tpop_impact %>% 
+  filter(!ISO3 %in% car_count_list)
+
+write.csv(tot_impact_car, paste0(tables, "tot_impact_car.csv"))
+write.csv(tot_impac_lat, paste0(tables, "tot_impact_lat.csv"))
+
 ## Need to deal with NAs especially when estimating impact population 
+
+country_codes <- data.frame(
+  ISO3 = c("ABW", "AIA", "ARG", "ATG", "BHS", "BLZ", "BMU", "BOL", "BRA", "BRB",
+           "CHL", "COL", "CRI", "CUB", "CUW", "CYM", "DMA", "DOM", "ECU", "GLP",
+           "GRD", "GTM", "GUF", "GUY", "HND", "HTI", "JAM", "KNA", "LCA", "MEX",
+           "MSR", "MTQ", "NIC", "PAN", "PER", "PRI", "PRY", "SLV", "SUR", "TCA",
+           "TTO", "URY", "VCT", "VEN", "VGB"),
+  Country = c("Aruba", "Anguilla", "Argentina", "Antigua and Barbuda", "Bahamas",
+              "Belize", "Bermuda", "Bolivia", "Brazil", "Barbados", "Chile", "Colombia",
+              "Costa Rica", "Cuba", "Curaçao", "Cayman Islands", "Dominica", "Dominican Republic",
+              "Ecuador", "Guadeloupe", "Grenada", "Guatemala", "French Guiana", "Guyana",
+              "Honduras", "Haiti", "Jamaica", "Saint Kitts and Nevis", "Saint Lucia",
+              "Mexico", "Montserrat", "Martinique", "Nicaragua", "Panama", "Peru", "Puerto Rico",
+              "Paraguay", "El Salvador", "Suriname", "Turks and Caicos Islands", "Trinidad and Tobago",
+              "Uruguay", "Saint Vincent and the Grenadines", "Venezuela", "British Virgin Islands")
+)
+
+# Separate country codes for Latin America Discuss classification this is from UNSD
+#https://unstats.un.org/unsd/methodology/m49/
+
+car_count_list <-  c(
+  "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUB", "CUW",
+  "DMA", "DOM", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
+  "LCA", "MAF", "VCT", "SXM", "TTO", "TCA", "VIR"
+)
+
+latam_countries <- country_codes %>% 
+  filter(!ISO3 %in% car_count_list)
+car_countries <- country_codes %>% 
+  filter(ISO3 %in% car_count_list)
+
+# View the dataframe
+print(country_codes)
+
+tpop_impact_per_table <- tpop_impact_per %>% 
+  merge(. , country_codes, by = "ISO3" ) %>% 
+  select(c( ISO3, Country, tpop_req_per, tpop_rwind_per, tpop_rflood_per, ypop_req_per, ypop_rwind_per,
+            ypop_rflood_per, wfagpop_req_per, wfagpop_rwind_per, wfagpop_rflood_per, oldpop_req_per, oldpop_rwind_per, oldpop_rflood_per))
+  
+# Separate for latam
+write.csv(tpop_impact_per_table, paste0(tables, "tpop_impact_per_table.csv"))
+
+# Separate for latam
+tpop_impact_per_table_latam <- tpop_impact_per_table %>%
+  filter(!ISO3 %in% car_count_list)
+
+# And Caribbean
+tpop_impact_per_table_car <- tpop_impact_per_table %>%
+  filter(ISO3 %in% car_count_list)
+# Export both datasets
+write.csv(tpop_impact_per_table_latam, paste0(tables, "tpop_impact_per_table_latam.csv"))
+write.csv(tpop_impact_per_table_car, paste0(tables, "tpop_impact_per_table_car.csv"))
+
+# 3.2 PLOTS ---
+# Plot percentages by country for latam
+
+
+
+  
+  
