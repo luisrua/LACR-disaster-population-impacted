@@ -8,6 +8,7 @@
 library(terra)
 library(tidyterra)
 library(tidyverse)
+library(sf)
 library(exactextractr)
 library(openxlsx)
 
