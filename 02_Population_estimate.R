@@ -20,14 +20,12 @@ tables <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/tabl
 # Admin boundaries
 ab <- vect(paste0(layers,"ab/lac_ab_pol_54034.gpkg"))
 
-
 # Impact zones
 req_pol <- vect(paste0(layers,"processed/req_pol_54034.gpkg"))
 rwind_pol <- vect(paste0(layers,"processed/rwind_pol_54034.gpkg"))
 rflood_pol <- vect(paste0(layers,"processed/flood_lac_54034.gpkg"))
 two_hazard <- vect(paste0(layers, "processed/two_hazard.gpkg"))
 three_hazard <- vect(paste0(layers, "processed/three_hazard.gpkg"))
-
 
 # Population grids
 tpop <- rast(paste0(layers, "population/wpop_lac_54032.tif"))
@@ -42,8 +40,8 @@ impact_zones <- list(
   req_pol = req_pol,
   rwind_pol = rwind_pol,
   rflood_pol = rflood_pol,
-  twoimpact_pol = twoimpact_pol,
-  threeimpact_pol = threeimpact_pol
+  two_hazard = two_hazard,
+  three_hazard = three_hazard
 )
 
 pop_rasters <- list(
@@ -99,7 +97,7 @@ wide_impactpop <- final_result %>%
     values_from = population
   )
 
-
+names(wide_impactpop)
 # Calculate total population by country 
 # Initialize results list
 pop_results <- list()
@@ -150,27 +148,29 @@ tpop_impact_per <- tpop_impact %>%
     tpop_req_per = (tpop_req_pol  / tpop) * 100,
     tpop_rwind_per = (tpop_rwind_pol  / tpop) * 100,
     tpop_rflood_per = (tpop_rflood_pol  / tpop) * 100,
+    tpop_two_hazard_per = (tpop_two_hazard  / tpop) * 100,
+    tpop_three_hazard_per = (tpop_three_hazard  / tpop) * 100,
     ypop_req_per = (ypop_req_pol  / ypop) * 100,
     ypop_rwind_per = (ypop_rwind_pol  / ypop) * 100,
     ypop_rflood_per = (ypop_rflood_pol  / ypop) * 100,
+    ypop_two_hazard_per = (ypop_two_hazard  / ypop) * 100,
+    ypop_three_hazard_per = (ypop_three_hazard  / ypop) * 100,
     wfagpop_req_per = (wfagpop_req_pol  / wfagpop) * 100,
     wfagpop_rwind_per = (wfagpop_rwind_pol  / wfagpop) * 100,
     wfagpop_rflood_per = (wfagpop_rflood_pol  / wfagpop) * 100,
+    wfagpop_two_hazard_per = (wfagpop_two_hazard  / wfagpop) * 100,
+    wfagpop_three_hazard_per = (wfagpop_three_hazard  / wfagpop) * 100,
     oldpop_req_per = (oldpop_req_pol  / oldpop) * 100,
     oldpop_rwind_per = (oldpop_rwind_pol  / oldpop) * 100,
-    oldpop_rflood_per = (oldpop_rflood_pol  / oldpop) * 100
+    oldpop_rflood_per = (oldpop_rflood_pol  / oldpop) * 100,
+    oldpop_two_hazard_per = (oldpop_two_hazard  / oldpop) * 100,
+    oldpop_three_hazard_per = (oldpop_three_hazard  / oldpop) * 100
   )
 
 write.csv(tpop_impact, paste0(tables, "tpop_impact.csv"))
 write.csv(tpop_impact_per, paste0(tables, "tpop_impact_per.csv"))
 
-tot_impact_car <- tpop_impact %>% 
-  filter(ISO3 %in% car_count_list)
-tot_impac_lat <- tpop_impact %>% 
-  filter(!ISO3 %in% car_count_list)
 
-write.csv(tot_impact_car, paste0(tables, "tot_impact_car.csv"))
-write.csv(tot_impac_lat, paste0(tables, "tot_impact_lat.csv"))
 
 ## Need to deal with NAs especially when estimating impact population 
 
@@ -204,13 +204,24 @@ latam_countries <- country_codes %>%
 car_countries <- country_codes %>% 
   filter(ISO3 %in% car_count_list)
 
+# Tables for subregions
+tot_impact_car <- tpop_impact %>% 
+  filter(ISO3 %in% car_count_list)
+tot_impac_lat <- tpop_impact %>% 
+  filter(!ISO3 %in% car_count_list)
+
+write.csv(tot_impact_car, paste0(tables, "tot_impact_car.csv"))
+write.csv(tot_impac_lat, paste0(tables, "tot_impact_lat.csv"))
+
 # View the dataframe
 print(country_codes)
 
 tpop_impact_per_table <- tpop_impact_per %>% 
   merge(. , country_codes, by = "ISO3" ) %>% 
-  select(c( ISO3, Country, tpop_req_per, tpop_rwind_per, tpop_rflood_per, ypop_req_per, ypop_rwind_per,
-            ypop_rflood_per, wfagpop_req_per, wfagpop_rwind_per, wfagpop_rflood_per, oldpop_req_per, oldpop_rwind_per, oldpop_rflood_per))
+  select(c( ISO3, Country, tpop_req_per, tpop_rwind_per, tpop_rflood_per, tpop_two_hazard_per,tpop_three_hazard_per,
+            ypop_req_per, ypop_rwind_per, ypop_rflood_per, ypop_two_hazard_per, ypop_three_hazard_per,
+            wfagpop_req_per, wfagpop_rwind_per, wfagpop_rflood_per, wfagpop_two_hazard_per, wfagpop_three_hazard_per,
+            oldpop_req_per, oldpop_rwind_per, oldpop_rflood_per, oldpop_two_hazard_per, oldpop_three_hazard_per))
   
 # Separate for latam
 write.csv(tpop_impact_per_table, paste0(tables, "tpop_impact_per_table.csv"))
