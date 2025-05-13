@@ -295,32 +295,6 @@ for (iso in iso3codes) {
 # 2.1.4 ELDER 60 + YEARS OLD -----
 o60_dir <- paste0(dir, "data/input_data/wpop_old_sum60/")
 
-# # Loop through each country
-# for (iso in iso3codes) {
-#   # Get a list of files starting with the ISO code
-#   iso_files <- list.files(paste0(dir, "data/input_data/wpop_old60"), pattern = paste0("^", iso,".*\\.tif$"), full.names = TRUE)
-#   
-#   # Check if there are files for the given ISO code
-#   if (length(iso_files) > 0) {
-#     # Initialize the sum raster
-#     r_sum <- rast(iso_files[1])
-#     
-#     # Loop over the remaining files and add to the sum
-#     for (file in iso_files[-1]) {
-#       r <- rast(file)
-#       r_sum <- r_sum + r
-#     }
-#     
-#     # Save the result
-#     print(paste0(iso,"_old:", as.integer(cellStats(raster(r_sum), stat = 'sum'))))
-#     writeRaster(r_sum, paste0(o60_dir, iso, "_wpop_old60.tif"), overwrite = TRUE)
-#   } else {
-#     cat("No files found for the given ISO code:", iso, "\n")
-#   }
-# }
-
-
-# Loop through each ISO code
 # Loop through each ISO code
 for (iso in iso3codes) {
   
@@ -389,7 +363,8 @@ for (file in files){
   cat(file,"/ orig_pop:", r_sum, "/ rep_pop:", r_rep_sum, "/ ratio:", pop_ratio, "/ r_res_pop:", r_res_sum,"\n")
   
   # save results
-  writeRaster(r_res, paste0(dir,"data/input_data/wpop_youth_proc/proc_", file), overwrite=T)
+  writeRaster(r_res, paste0(dir,"data/input_data/wpop_youth_proc/proc_", file), overwrite=T, 
+              wopt = list(datatype = "INT4S", gdal = "COMPRESS=DEFLATE"))
 }
 toc()
 
@@ -422,7 +397,8 @@ for (file in files){
   cat(file,"/ orig_pop:", r_sum, "/ rep_pop:", r_rep_sum, "/ ratio:", pop_ratio, "/ r_res_pop:", r_res_sum,"\n")
   
   # save results
-  writeRaster(r_res, paste0(dir,"data/input_data/wpop_wfage_proc/proc_", file), overwrite=T)
+  writeRaster(r_res, paste0(dir,"data/input_data/wpop_wfage_proc/proc_", file), overwrite=T,
+              wopt = list(datatype = "INT4S", gdal = "COMPRESS=DEFLATE"))
 }
 toc()
 
@@ -456,7 +432,8 @@ for (file in files){
   cat(file,"/ orig_pop:", r_sum, "/ rep_pop:", r_rep_sum, "/ ratio:", pop_ratio, "/ r_res_pop:", r_res_sum,"\n")
   
   # save results
-  writeRaster(r_res, paste0(dir,"data/input_data/wpop_old_proc/proc_", file), overwrite=T)
+  writeRaster(r_res, paste0(dir,"data/input_data/wpop_old_proc/proc_", file), overwrite=T,
+              wopt = list(datatype = "INT4S", gdal = "COMPRESS=DEFLATE"))
 }
 toc()
 
@@ -489,7 +466,8 @@ for (file in files){
   cat(file,"/ orig_pop:", r_sum, "/ rep_pop:", r_rep_sum, "/ ratio:", pop_ratio, "/ r_res_pop:", r_res_sum,"\n")
   
   # save results
-  writeRaster(r_res, paste0(dir,"data/input_data/wpop_old_proc60/proc_", file), overwrite=T)
+  writeRaster(r_res, paste0(dir,"data/input_data/wpop_old_proc60/proc_", file), overwrite=T,
+              wopt = list(datatype = "INT4S", gdal = "COMPRESS=DEFLATE"))
 }
 toc()
 
@@ -512,7 +490,7 @@ plot(wpop_lac)
   
 # Export into tif
 writeRaster(wpop_lac, paste0(dir, "data/input_data/wpop_merged/wpop_lac_youth_54032.tif"), overwrite = TRUE)
-toc()
+
 
 # 3.2.1 WOMEN REP AGE ----
 files <- list.files(path = paste0(dir,"data/input_data/wpop_wfage_proc/"), pattern = "\\.tif$", full.names = T)
@@ -528,7 +506,7 @@ plot(wpop_lac)
 
 # Export into tif
 writeRaster(wpop_lac, paste0(dir, "data/input_data/wpop_merged/wpop_lac_wfage_54032.tif"), overwrite = TRUE)
-toc()
+
 
 
 # 3.2.3 OLD ----
@@ -545,13 +523,13 @@ plot(wpop_lac)
 
 # Export into tif
 writeRaster(wpop_lac, paste0(dir, "data/input_data/wpop_merged/wpop_lac_old_54032.tif"), overwrite = TRUE)
-toc() 
+
 
 
 # 3.2.4 OLD60 ----
 files <- list.files(path = paste0(dir,"data/input_data/wpop_old_proc60/"), pattern = "\\.tif$", full.names = T)
 
-# This still does not solve the merge issue but definitivelly improves the code.
+
 rlist <- lapply(files,rast)
 sprc_list <- sprc(rlist)
 wpop_lac <- mosaic(sprc_list, fun = 'sum')
@@ -560,6 +538,11 @@ wpop_lac <- mosaic(sprc_list, fun = 'sum')
 # Plot to see how it looks like
 plot(wpop_lac)
 
+# crop with ab
+layers <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/layers/"
+ab <- vect(paste0(layers,"ab/lac_ab_pol_54034.gpkg"))
+wpop_lac <- crop(wpop_lac, ab)
+
 # Export into tif
-writeRaster(wpop_lac, paste0(dir, "data/input_data/wpop_merged/wpop_lac_old60_54032.tif"), overwrite = TRUE)
-toc()
+writeRaster(wpop_lac, paste0(dir, "data/input_data/wpop_merged/rep_crop_wpop_old60_sum.tif"), overwrite = TRUE)
+3
