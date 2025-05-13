@@ -7,6 +7,7 @@ library(terra)
 library(tidyterra)
 
 
+
 # Patths
 layers <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/layers/"
 
@@ -77,6 +78,9 @@ rwind_pol <- rwind_pol %>%
 
 plot(rwind_pol)
 
+# And project back into Equal Area Projection
+rwind_pol <- project(rwind_pol, "ESRI:54034")
+
 writeVector(rwind_pol, paste0(layers,"processed/rwind_pol_54034.gpkg"), overwrite = T)
 
 # 2.3 FLOODS -----
@@ -125,3 +129,56 @@ v_merged <- v_merged %>%
 # Project and Export
 v_merged <- project(v_merged, "ESRI:54034")
 writeVector(v_merged, paste0(layers,"processed/flood_lac_54034.gpkg"))
+
+# 3. 2-3 SIMULTANEOUS DISASTERS ZONES ==========================================
+flood <- vect(paste0(layers,"processed/flood_lac_54034.gpkg"))
+eq <- vect(paste0(layers,"processed/req_pol_54034.gpkg"))
+hurwind <- vect(paste0(layers,"processed/rwind_pol_54034.gpkg"))
+
+# Identify Hazard for each layer
+flood$hazard <- "flood"
+eq$hazard <- "earthquake"
+hurwind$hazard <- "wind"
+
+# Pairwise intersection
+int_fe <- intersect(flood, eq)
+int_fw <- intersect(flood, hurwind)
+int_ew <- intersect(eq, hurwind)
+
+
+# Add a field for hazard pairs
+int_fe$haz_pair <- "flood_earthquake"
+int_fw$haz_pair <- "flood_wind"
+int_ew$haz_pair <- "earthquake_wind"
+
+# Combine all intersected zones
+multi_hazard <- rbind(int_fe, int_fw, int_ew)
+
+# Optional: Remove empty geometries
+multi_hazard <- multi_hazard[!is.empty(multi_hazard), ]
+
+# Plot to confirm
+plot(multi_hazard)
+multi_hazard <- multi_hazard %>% 
+  tidyterra::select(haz_pair)
+  
+writeVector(multi_hazard, paste0(layers,"processed/two_hazard.gpkg" ), overwrite=T)
+
+# 3 hazards
+# First intersect two layers
+fe <- intersect(flood, eq)
+
+
+# Then intersect that result with the third layer
+few <- intersect(fe, hurwind)
+
+# Optional: Remove empty geometries
+few <- few[!is.empty(few), ]
+
+few$haz_pair <- "flood_earthquake_wind"
+
+three_hazzard <- few %>% 
+  tidyterra::select(haz_pair)
+
+writeVector(three_hazzard, paste0(layers,"processed/three_hazard.gpkg" ), overwrite=T)
+

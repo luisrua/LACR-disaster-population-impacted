@@ -1,6 +1,6 @@
 # 02. POPULATION ESTIMATE
 # Overlap processed impact zones with Worldpop dataset to estimate population 
-# ootentially impacted by disasters.
+# potentially impacted by disasters.
 
 # SETTINGS
 # Libraries
@@ -25,12 +25,15 @@ ab <- vect(paste0(layers,"ab/lac_ab_pol_54034.gpkg"))
 req_pol <- vect(paste0(layers,"processed/req_pol_54034.gpkg"))
 rwind_pol <- vect(paste0(layers,"processed/rwind_pol_54034.gpkg"))
 rflood_pol <- vect(paste0(layers,"processed/flood_lac_54034.gpkg"))
+two_hazard <- vect(paste0(layers, "processed/two_hazard.gpkg"))
+three_hazard <- vect(paste0(layers, "processed/three_hazard.gpkg"))
+
 
 # Population grids
 tpop <- rast(paste0(layers, "population/wpop_lac_54032.tif"))
 ypop <- rast(paste0(layers,"population/rep_crop_wpop_youth_sum.tif_resamp.tif"))
 wfagpop <- rast(paste0(layers,"population/rep_crop_wpop_wfag_sum.tif_resamp.tif"))
-oldpop <- rast(paste0(layers,"population/rep_crop_wpop_old_sum.tif_resamp.tif"))
+oldpop <- rast(paste0(layers,"population/rep_crop_wpop_old60_sum.tif")) # here the 60+
 
 # 2. ESTIMATE POPULATION WITHIN IMPACT ZONES BY COUNTRY ========================
 
@@ -38,7 +41,9 @@ oldpop <- rast(paste0(layers,"population/rep_crop_wpop_old_sum.tif_resamp.tif"))
 impact_zones <- list(
   req_pol = req_pol,
   rwind_pol = rwind_pol,
-  rflood_pol = rflood_pol
+  rflood_pol = rflood_pol,
+  twoimpact_pol = twoimpact_pol,
+  threeimpact_pol = threeimpact_pol
 )
 
 pop_rasters <- list(
@@ -94,43 +99,8 @@ wide_impactpop <- final_result %>%
     values_from = population
   )
 
-# # Initialize results list
-# results <- list()
-# 
-# # Loop through each impact zone
-# for (name in names(impact_zones)) {
-#   zone <- impact_zones[[name]]
-#   zone <- project(zone, crs(tpop))  # ensure CRS matches
-#   
-#   # Mask population raster with the impact zone
-#   pop_cropped <- crop(tpop, zone)
-#   pop_masked <- mask(pop_cropped, zone)
-#   
-#   # Exact extract population sum by country
-#   pop_by_country <- exact_extract(pop_masked, ab_sf, 'sum')
-#   
-#   # Store results
-#   temp <- data.frame(
-#     ISO3 = ab_sf$GID_0,
-#     impact_area = name,
-#     population = pop_by_country
-#   )
-#   
-#   results[[name]] <- temp
-# }
-# 
-# # Combine results into one dataframe
-# final_result <- bind_rows(results)
 
-
-# Calculate total population by country and rbind
-# tpop_iso <- exact_extract(tpop,ab_sf, 'sum')
-# 
-# tpop_iso <- data.frame(
-#   ISO3 = ab_sf$GID_0,
-#   tpop = tpop_iso
-# )
-
+# Calculate total population by country 
 # Initialize results list
 pop_results <- list()
 
@@ -169,6 +139,8 @@ print(pop_wide)
 
 # Merge with total population 
 tpop_impact <- merge (pop_wide, wide_impactpop, by = "ISO3")
+
+
 
 # 3. TABLES AND GRAPHS ========================================================
 # 3.1 BASIC TABLES ----
