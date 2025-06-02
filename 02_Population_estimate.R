@@ -170,6 +170,7 @@ tpop_impact_per <- tpop_impact %>%
 write.csv(tpop_impact, paste0(tables, "tpop_impact.csv"))
 write.csv(tpop_impact_per, paste0(tables, "tpop_impact_per.csv"))
 
+# When tables already calculated
 
 
 ## Need to deal with NAs especially when estimating impact population 
@@ -194,9 +195,9 @@ country_codes <- data.frame(
 #https://unstats.un.org/unsd/methodology/m49/
 
 car_count_list <-  c(
-  "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUB", "CUW",
-  "DMA", "DOM", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
-  "LCA", "MAF", "VCT", "SXM", "TTO", "TCA", "VIR"
+  "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUW",
+  "DMA", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
+  "LCA", "MAF", "VCT", "SXM", "SUR", "TTO", "TCA", "VIR", "GUF", "GUY"
 )
 
 latam_countries <- country_codes %>% 
