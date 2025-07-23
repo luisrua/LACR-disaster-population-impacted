@@ -209,3 +209,83 @@ hf_spat <- hf_spat %>%
 
 
 st_write(hf_spat,paste0(layers,"/hf/lac_hf_54034.gpkg"), append=F)
+
+# 5. Intersect with Admin Boundaries and Hazard zones to get number of Health Facilities in Hazard prone areas =====
+# Admin boundaries
+ab <- st_read(paste0(layers,"ab/lac_ab_pol_54034.gpkg"))
+
+# Hazard prone areas
+# Impact zones
+req_pol <- st_read(paste0(layers,"processed/req_pol_54034.gpkg"))
+rwind_pol <- st_read(paste0(layers,"processed/rwind_pol_54034.gpkg"))
+rflood_pol <- st_read(paste0(layers,"processed/flood_lac_54034.gpkg"))
+two_hazard <- st_read(paste0(layers, "processed/two_hazard.gpkg"))
+three_hazard <- st_read(paste0(layers, "processed/three_hazard.gpkg"))
+
+# Named list of your three impact zones
+impact_zones <- list(
+  req_pol = req_pol,
+  rwind_pol = rwind_pol,
+  rflood_pol = rflood_pol,
+  two_hazard = two_hazard,
+  three_hazard = three_hazard
+)
+
+# Loop through each hazard polygon and join
+hf_counts <- map_dfr(names(impact_zones), function(hazard_name) {
+  
+  # Get the polygon
+  hz <- impact_zones[[hazard_name]]
+  
+  # Spatial join: facilities intersecting this hazard zone
+  hf_in_zone <- st_join(hf_spat, hz, left = FALSE)
+  
+  # Add hazard name as a column
+  hf_in_zone$hazard_type <- hazard_name
+  
+  # Group and count
+  hf_in_zone %>%
+    st_drop_geometry() %>%
+    group_by(iso3, hazard_type, amenity) %>%
+    summarise(n_facilities = n(), .groups = "drop")
+})
+
+# Reshape to get number of HF by hazard zone and by amentity
+hf_summary_wide <- hf_counts %>%
+  pivot_wider(
+    names_from = c(hazard_type, amenity),  # multiple columns into name
+    values_from = n_facilities,
+    values_fill = 0
+  )
+
+# Calculate total of Health Facilities too
+hf_summary <- hf_summary_wide %>% 
+  mutate(
+    total_hf_req = rowSums(select(., starts_with("req_pol")), na.rm = T),
+    total_hf_rwind = rowSums(select(., starts_with("rwind_pol")), na.rm = T),
+    total_hf_rflood = rowSums(select(., starts_with("rflood_pol")), na.rm = T),
+    total_hf_two_hazard = rowSums(select(., starts_with("two_hazard")), na.rm = T),
+    total_hf_three_hazard = rowSums(select(., starts_with("three_hazard")), na.rm = T)
+    ) %>% 
+  relocate(total_hf_req, .before = req_pol_clinic) %>%
+  relocate(total_hf_rwind, .before = rwind_pol_clinic) %>%
+  relocate(total_hf_rflood, .before = rflood_pol_clinic) %>%
+  relocate(total_hf_two_hazard, .before = two_hazard_clinic) %>%
+  relocate(total_hf_three_hazard, .before = three_hazard_clinic)
+
+# Calculate all number of healthfacilities by country and amenity
+hf_summary_all <- hf_spat %>% 
+  as.data.frame() %>% 
+  group_by(iso3, amenity) %>%
+  summarize(n_hf = n()
+            ) %>% 
+  pivot_wider(
+    names_from = amenity,
+    values_from = n_hf,
+    values_fill = 0
+  ) %>% 
+  mutate(total_hf  = clinic + hospital)
+
+# Merge both tables
+hf_in_hzones <- merge(hf_summary_all , hf_summary, by = "iso3")
+ab
