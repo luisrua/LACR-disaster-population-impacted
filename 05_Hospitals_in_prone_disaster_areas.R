@@ -10,231 +10,163 @@ man_path <- "C:/GIS/UNFPA GIS/HF/LAC/layers/raw/manual_hf/" # where layers downl
 tables <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/tables/"
 plots <- "C:/GIS/UNFPA GIS/Spatial Analysis Regional/Disaster_popestimates/plots/"
 
-# 1. HEALTH FACILITIES REGIONAL LAYER =========================================
-# Use rdhx library to explore and download data info in "https://dickoa.gitlab.io/rhdx/"
-library(rhdx)
-library(readr)
+# 1. HEALTH FACILITIES REGIONAL LAYER FROM PAHO DATABASE =========================================
+# Metadata available here
+# https://who.maps.arcgis.com/home/item.html?id=3533f8b02bfd44c2b8834313612286e9#overview
+# Dataset included in this Real time natural hazards dashboard
+# https://www.arcgis.com/apps/webappviewer/index.html?id=bbb6909009994e60a025549b02e8e07c
 
-# Locate and load HF datasets for the region directly from HDX and save them as csv tables
-# we use in following steps
-# if this does not work we can use HF list
-# https://docs.google.com/spreadsheets/d/1lDcPCItS1xfkbZ5PH1xNmEqiGCBknez1YoUMrKDQn7A/edit?usp=drive_link
+# 1.1 Import dbf table and convert into spatial ----
+library(foreign)
+hf_table <- read.dbf(paste0(layers,"hf_paho/emergency_hospitals_2021.dbf"))
+str(hf_table)
 
-# List of small countries
-iso3codes <- c('abw','aia','arg','atg','bhs','blz','bmu','bol','brb','bra',
-               'chl','col','cri','cub','cuw','cym','dma','dom','ecu','glp',
-               'grd','gtm','guf','guy','hnd','hti','jam','kna','lca','mex',
-               'msr','mtq','nic','pan','per','pri','pry','slv','sur','tca',
-               'tto','ury','vct','ven','vgb')
-for (code in iso3codes){
-  
-  # We exclude big countries
-  if(!(code %in% c('bra','mex'))) {
-    hf <- pull_dataset(paste0("hotosm_",code,"_health_facilities")) %>% 
-      get_resource(1) %>% 
-      read_resource() %>%
-      mutate(geo = sf::st_as_text(geometry)) %>% 
-      #Create field with country iso3
-      mutate(iso3 = code) %>% 
-      
-      # Remove geometry that is giving issues when exporting to csv
-      st_drop_geometry() %>% 
-      write.csv( paste0(layers,"hf/",code, "_health_facilities.csv"))
-  }
-}
+# Check categories
+table(hf_table$H_Level)
+table(hf_table$H_Sector)
+table(hf_table$SurgeryRm)
+table(hf_table$IntensiveR)
 
-# For big countries we do this separately as the are some particularities for these datasets
-# MEXICO fromn hotosm 
-search_datasets("mexico Health OSM", rows=20)
+# H_level
+hf_table %>% 
+group_by(H_Level) %>%
+  summarize(
+    H_Level_count = n(),
+    na_count = sum(is.na(H_Level))
+  )
 
-# Get the resource
-hf <- pull_dataset("hotosm_mex_health_facilities") %>% 
-  get_resource(3)
+# H_sector
+hf_table %>% 
+  group_by(H_Sector) %>%
+  summarize(
+    H_Sector_count = n(),
+    na_count = sum(is.na(H_Sector))
+  )
 
-# Download the resource (returns zip path)
-zip_path <- download_resource(hf, filename = "mex_health_facilities.zip")
+# Surgery
+hf_table %>% 
+  group_by(SurgeryRm) %>%
+  summarize(
+    SurgeryRm_count = n(),
+    na_count = sum(is.na(SurgeryRm))
+  )
 
-# Unzip (returns the path(s) of extracted files)
-unzipped_files <- unzip(zip_path, exdir = "data/mex_hf")
+# Intensive R
+hf_table %>% 
+  group_by(IntensiveR) %>%
+  summarize(
+    IntensiveR_count = n(),
+    na_count = sum(is.na(IntensiveR))
+  )
+# Correct Intensive R 
+hf_table <- hf_table %>%
+  mutate(IntensiveR = fct_recode(IntensiveR, "No" = "nO"))
 
-# Read the GeoPackage (assumes only one .gpkg file inside)
-gpkg_file <- unzipped_files[grepl("\\.gpkg$", unzipped_files)]
-hf_data <- read_sf(gpkg_file)
+# Intensive R
+hf_table %>% 
+  group_by(IntensiveR) %>%
+  summarize(
+    IntensiveR_count = n(),
+    na_count = sum(is.na(IntensiveR))
+  )
 
-hf_data %>%
-  mutate(
-    iso3 = 'mex',
-    geo = sf::st_as_text(geom)  # fully qualify to be safe
-  ) %>%
-  st_drop_geometry() %>%
-  write.csv(paste0(layers, "hf/mex_health_facilities.csv"), row.names = FALSE)
-
-
-# BRASIL (dataset in OSM has been merged)
-search_datasets("brazil Health OSM", rows=40)
-
-hf_df <- "hotosm_bra_health_facilities"
-
-hf <- pull_dataset(hf_df) %>% 
-  get_resource(4) 
-# Download the resource (returns zip path)
-zip_path <- download_resource(hf, filename = "bra_health_facilities.zip")
-
-# Unzip (returns the path(s) of extracted files)
-unzipped_files <- unzip(zip_path, exdir = "data/bra_hf")
-
-# Read the GeoPackage (assumes only one .gpkg file inside)
-gpkg_file <- unzipped_files[grepl("\\.gpkg$", unzipped_files)]
-
-hf_data <- read_sf(gpkg_file)
-
-hf_data %>%
-  mutate(
-    iso3 = 'mex',
-    geo = sf::st_as_text(geom)  # fully qualify to be safe
-  ) %>%
-  st_drop_geometry() %>%
-  write.csv(paste0(layers, "hf/bra_health_facilities.csv"), row.names = FALSE)
-
-
-# 2. HARMONISE, CLEAN AND CONVERT TO SPATIAL ===================================
-# Open all raw datasets check same structure and merge
-# Path
-raw_csv <- paste0(layers,"hf/")
-
-# Get a list of all CSV files in the folder
-csv_files <- list.files(path = raw_csv, pattern = "\\.csv$", full.names = TRUE)
-
-# Check what are the common variables
-get_column_names <- function(csv_file) {
-  df <- read.csv(csv_file, nrow = 1)  # Read only the first row to get column names
-  colnames(df)
-}
-# Get column names for each CSV file
-columns_list <- map(csv_files, get_column_names)
-
-# Find common fields across all CSV files
-common_fields <- Reduce(intersect, columns_list)
-
-print(common_fields)
-
-# Merging in one single dataframe and converting into a spatial object
-
-comb_hf <- do.call(rbind, lapply(csv_files, function(csv_file) {
-  # Read each CSV file
-  df <- read_csv(csv_file, col_types = cols_only(
-    iso3 = col_character(),
-    osm_id = col_character(),
-    name = col_character(),
-    amenity = col_character(),
-    healthcare = col_character(),
-    geo = col_character()
-  ))
-  # Convert to spatial oject
-  sf::st_as_sf(df, wkt= 'geo', crs = 'EPSG:4326')
-}))
-# plot(comb_hf)
-
-# 3 SUMMARISE BY COUNTRY AND CATEGORIES AS WELL AS CLEANING NAS ===============
+# 2. SUMMARISE BY COUNTRY AND CATEGORIES AS WELL AS CLEANING NAS ===============
 
 # What categories we are going to include check first how data looks like
-sum_hf <- comb_hf %>% 
-  as_data_frame() %>% 
-  group_by(iso3,amenity) %>% 
+sum_hf <- hf_table %>% 
+  as.data.frame() %>% 
+  group_by(CTRYISOA3 ,H_Level) %>% 
   summarise(num_hf = n()) %>%
-  filter(amenity %in% c('clinic', 'hospital')) %>% 
   print()
 
-sum_hf_allcat <- comb_hf %>% 
+sum_hf_surgery <- hf_table %>% 
   as.data.frame() %>% 
-  group_by(iso3,amenity, healthcare) %>% 
+  group_by(CTRYISOA3 ,SurgeryRm) %>% 
   summarise(num_hf = n()) %>%
   print()
 
 # Identify countries with no hospitals or clinics to find inconsistencies in data or countries
-# we need to get more datasets for
-
-# Bring in manual hospitals detected using GMaps in countries with no hospitals.
-nohosp_iso <- c('aia', 'bmu', 'kna','msr','vgb')
-list_df <- list()
-# Import hospital locations from manual datasets and merge into one dataset
-
-for (iso in nohosp_iso) {
-  list_df[[iso]] <- read_csv(paste0("C:/GIS/UNFPA GIS/HF/LAC/data/input_data/hf/",iso,"_health_facilities.csv"))
-}
-
-hf_man <- bind_rows(list_df)
-nrow(hf_man)
-nrow(comb_hf)
-
-hf_man_spat <-   sf::st_as_sf(hf_man, wkt= 'geo', crs = 'EPSG:4326')
-
-hf_man_spat <- hf_man_spat %>% 
-  select(name, amenity, healthcare, osm_id, geo, iso3)
-
-plot(hf_man_spat)
-
-# harmonise dataframe with comb_hf 
-hf_man_spat <- hf_man_spat %>%
-  mutate(across(c(iso3, osm_id, name, amenity, healthcare), as.character))
-
-# Combine manual locations with comb_hf
-hf_completed <- bind_rows(comb_hf,hf_man_spat)
-
-# Check if combined df workded summary number facitliies by country
-sum_hf_clhosp <- hf_completed %>% 
-  as.data.frame() %>% 
-  filter(amenity %in% c('clinic', 'hospital')) %>% 
-  group_by(iso3,amenity) %>% 
-  summarise(num_hf = n()) %>%
-  print()
-
-# write.csv(sum_hf_all,paste0(dir,"tables/sum_hf_all.csv"))
 
 # Identify countries without Hospitals
-sum_hf_clhosp %>% 
-  filter(is.na(num_hf)) %>% 
+sum_hf %>% 
+  filter(num_hf == 0) %>% 
   print()
+# No Hospital countries detected in the dataset
 
-# 4. Filter HF by category, convert to spatial and reproject ===================
+
+# Find duplicates in HF ids
+anyDuplicated(hf_table$GlobalID)
+
+# Find null coordinates
+hf_table %>% 
+  filter(Longitude == 0)
+hf_table %>% 
+  filter(Latitude == 0)
+hf_table %>% 
+  filter(is.na(Longitude))
+hf_table %>% 
+  filter(is.na(Latitude))
+
+# Find overlapped hf_table 
+overlapped_coords <- hf_table %>%
+  group_by(Longitude, Latitude) %>%
+  summarize(count = n(), .groups = 'drop') %>%
+  filter(count > 1)
+
+# Important to document this issue in the final analysis
+overlapped_hosp <- hf_table %>% 
+  group_by(Longitude, Latitude ) %>%
+  filter(n() > 1) %>%
+  ungroup() 
+
+overlapped_count <- table(overlapped_hosp$CTRYISOA3)
+
+# Clean a bit the dataset to make it lighter.> Later
+
+# 3. Filter HF by category, convert to spatial and reproject ===================
+# Remove Canada and USA
+hf_table <- hf_table %>% 
+  filter(!(CTRYISOA3 %in% c('CAN', 'USA'))) %>% 
+  droplevels()
+
+# Convert into spatial
+hf_spat <- st_as_sf(hf_table, coords = c("Longitude", "Latitude"), crs = 4326)
+plot(hf_spat["SurgeryRm"])
 
 # Convert to spatial and reproject into World Cylindrical Equal Area
-hf_spat <- hf_completed %>% 
-  filter(amenity %in% c('clinic', 'hospital')) %>%
-  st_as_sf() %>%
-  st_set_crs(st_crs(4326)) %>% 
+hf_spat <- hf_spat %>% 
   st_transform(crs = st_crs('ESRI:54034'))
 
-# Create unique id
-hf_spat <- hf_spat %>%   
-  mutate(hfid = row_number()) 
+# Rename some of the variables to make easier the analysis
+hf_spat <- hf_spat %>% 
+  rename(iso3 = CTRYISOA3,
+         ctry_name = CTRYISON)
 
+st_write(hf_spat,paste0(layers,"/hf_paho/lac_hf_paho_54034.gpkg"), append=F)
 
-st_write(hf_spat,paste0(layers,"/hf/lac_hf_54034.gpkg"), append=F)
-
-# 5. Intersect with Admin Boundaries and Hazard zones to get number of Health Facilities in Hazard prone areas =====
+# 4. Intersect with Admin Boundaries and Hazard zones to get number of Health Facilities in Hazard prone areas =====
 # Admin boundaries
 ab <- st_read(paste0(layers,"ab/lac_ab_pol_54034.gpkg"))
 
 # Hazard prone areas
 # Impact zones
-req_pol <- st_read(paste0(layers,"processed/req_pol_54034.gpkg"))
-rwind_pol <- st_read(paste0(layers,"processed/rwind_pol_54034.gpkg"))
-rflood_pol <- st_read(paste0(layers,"processed/flood_lac_54034.gpkg"))
+req <- st_read(paste0(layers,"processed/req_pol_54034.gpkg"))
+rwind <- st_read(paste0(layers,"processed/rwind_pol_54034.gpkg"))
+rflood <- st_read(paste0(layers,"processed/flood_lac_54034.gpkg"))
 two_hazard <- st_read(paste0(layers, "processed/two_hazard.gpkg"))
 three_hazard <- st_read(paste0(layers, "processed/three_hazard.gpkg"))
 
 # Named list of your three impact zones
 impact_zones <- list(
-  req_pol = req_pol,
-  rwind_pol = rwind_pol,
-  rflood_pol = rflood_pol,
+  req = req,
+  rwind = rwind,
+  rflood = rflood,
   two_hazard = two_hazard,
   three_hazard = three_hazard
 )
 
-# Loop through each hazard polygon and join
-hf_counts <- map_dfr(names(impact_zones), function(hazard_name) {
+# 4.1 By Surgery - Loop through each hazard polygon and join  ----
+hf_counts_surgery <- map_dfr(names(impact_zones), function(hazard_name) {
   
   # Get the polygon
   hz <- impact_zones[[hazard_name]]
@@ -248,54 +180,58 @@ hf_counts <- map_dfr(names(impact_zones), function(hazard_name) {
   # Group and count
   hf_in_zone %>%
     st_drop_geometry() %>%
-    group_by(iso3, hazard_type, amenity) %>%
+    group_by(iso3, hazard_type, SurgeryRm) %>%
     summarise(n_facilities = n(), .groups = "drop")
 })
 
 # Reshape to get number of HF by hazard zone and by amentity
-hf_summary_wide <- hf_counts %>%
+hf_summary_wide_surgery <- hf_counts_surgery %>%
   pivot_wider(
-    names_from = c(hazard_type, amenity),  # multiple columns into name
+    names_from = c(hazard_type, SurgeryRm),  # multiple columns into name
     values_from = n_facilities,
-    values_fill = 0
-  )
+    values_fill = 0 
+  ) %>% 
+  rename_with(~ paste0(.x, "_surgery"), !iso3)
 
 # Calculate total of Health Facilities too
-hf_summary <- hf_summary_wide %>% 
+hf_summary_surgery <- hf_summary_wide_surgery %>% 
   mutate(
-    total_hf_req = rowSums(select(., starts_with("req_pol")), na.rm = T),
-    total_hf_rwind = rowSums(select(., starts_with("rwind_pol")), na.rm = T),
-    total_hf_rflood = rowSums(select(., starts_with("rflood_pol")), na.rm = T),
+    total_hf_req = rowSums(select(., starts_with("req")), na.rm = T),
+    total_hf_rwind = rowSums(select(., starts_with("rwind")), na.rm = T),
+    total_hf_rflood = rowSums(select(., starts_with("rflood")), na.rm = T),
     total_hf_two_hazard = rowSums(select(., starts_with("two_hazard")), na.rm = T),
     total_hf_three_hazard = rowSums(select(., starts_with("three_hazard")), na.rm = T)
     ) %>% 
-  relocate(total_hf_req, .before = req_pol_clinic) %>%
-  relocate(total_hf_rwind, .before = rwind_pol_clinic) %>%
-  relocate(total_hf_rflood, .before = rflood_pol_clinic) %>%
-  relocate(total_hf_two_hazard, .before = two_hazard_clinic) %>%
-  relocate(total_hf_three_hazard, .before = three_hazard_clinic)
+  relocate(total_hf_req, .before = req_No_surgery ) %>%
+  relocate(rwind_Yes_surgery, .after = rwind_No_surgery) %>% 
+  relocate(total_hf_rwind, .before = rwind_No_surgery ) %>%
+  relocate(total_hf_rflood, .before = rflood_No_surgery ) %>%
+  relocate(total_hf_two_hazard, .before = two_hazard_Yes_surgery) %>%
+  relocate(total_hf_three_hazard, .before = three_hazard_No_surgery)
 
 # Calculate all number of healthfacilities by country and amenity
 hf_summary_all <- hf_spat %>% 
   as.data.frame() %>% 
-  group_by(iso3, amenity) %>%
+  group_by(iso3, SurgeryRm) %>%
   summarize(n_hf = n()
             ) %>% 
   pivot_wider(
-    names_from = amenity,
+    names_from = SurgeryRm,
     values_from = n_hf,
     values_fill = 0
   ) %>% 
-  mutate(total_hf  = clinic + hospital)
+  mutate(total_hf  = Yes + No)
 
 # Merge both tables
-hf_in_hzones <- merge(hf_summary_all , hf_summary, by = "iso3")
+hf_in_hzones <- merge(hf_summary_all , hf_summary_surgery, by = "iso3")
+
+# -------- hasta aqui
 
 # Calculate the percentages
 hf_in_hzones <- hf_in_hzones %>%
   mutate(
-    pct_req_clinic = (req_pol_clinic / clinic) * 100,
-    pct_req_hospital = (req_pol_hospital / hospital) * 100,
+    pct_req_Yes_surgery = (req_Yes_surgery  / clinic) * 100,
+    pct_req_No_surgery = (req_pol_hospital / hospital) * 100,
     pct_rec_total_hf = (total_hf_req / total_hf)*100,
     pct_rwind_clinic = (rwind_pol_clinic / clinic) * 100,
     pct_rwind_hospital = (rwind_pol_hospital / hospital) * 100,
