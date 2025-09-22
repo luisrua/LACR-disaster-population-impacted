@@ -133,7 +133,7 @@ hf_table <- hf_table %>%
 hf_spat <- st_as_sf(hf_table, coords = c("Longitude", "Latitude"), crs = 4326)
 plot(hf_spat["SurgeryRm"])
 
-# Convert to spatial and reproject into World Cylindrical Equal Area
+# Reproject into World Cylindrical Equal Area
 hf_spat <- hf_spat %>% 
   st_transform(crs = st_crs('ESRI:54034'))
 
@@ -165,7 +165,25 @@ impact_zones <- list(
   three_hazard = three_hazard
 )
 
-# 4.1 By Surgery - Loop through each hazard polygon and join  ----
+# 4.1 By Surgery Services Availability - Loop through each hazard polygon and join  ----
+
+# Calculate all number of health facilities by country and surgery
+hf_summary_all_surgery <- hf_spat %>% 
+  as.data.frame() %>% 
+  group_by(iso3, SurgeryRm) %>%
+  summarize(total_hf = n()
+  ) %>% 
+  pivot_wider(
+    names_from = SurgeryRm,
+    values_from = total_hf,
+    values_fill = 0
+  ) %>% 
+  mutate(total_hf = No + Yes) %>% 
+  rename(yes_surgery = Yes,
+         no_surgery = No) %>% 
+  relocate(total_hf, .before = no_surgery)
+
+
 hf_counts_surgery <- map_dfr(names(impact_zones), function(hazard_name) {
   
   # Get the polygon
@@ -180,7 +198,7 @@ hf_counts_surgery <- map_dfr(names(impact_zones), function(hazard_name) {
   # Group and count
   hf_in_zone %>%
     st_drop_geometry() %>%
-    group_by(iso3, hazard_type, SurgeryRm) %>%
+    group_by(iso3, hazard_type, SurgeryRm ) %>%
     summarise(n_facilities = n(), .groups = "drop")
 })
 
@@ -191,64 +209,463 @@ hf_summary_wide_surgery <- hf_counts_surgery %>%
     values_from = n_facilities,
     values_fill = 0 
   ) %>% 
-  rename_with(~ paste0(.x, "_surgery"), !iso3)
+  rename_with(~ paste0(.x, "_surgery"), !iso3) %>% 
+  rename_with(tolower)
+
 
 # Calculate total of Health Facilities too
 hf_summary_surgery <- hf_summary_wide_surgery %>% 
   mutate(
-    total_hf_req = rowSums(select(., starts_with("req")), na.rm = T),
-    total_hf_rwind = rowSums(select(., starts_with("rwind")), na.rm = T),
-    total_hf_rflood = rowSums(select(., starts_with("rflood")), na.rm = T),
-    total_hf_two_hazard = rowSums(select(., starts_with("two_hazard")), na.rm = T),
-    total_hf_three_hazard = rowSums(select(., starts_with("three_hazard")), na.rm = T)
+    req_hf_total = rowSums(select(., starts_with("req")), na.rm = T),
+    rwind_hf_total = rowSums(select(., starts_with("rwind")), na.rm = T),
+    rflood_hf_total = rowSums(select(., starts_with("rflood")), na.rm = T),
+    two_hazard_hf_total= rowSums(select(., starts_with("two_hazard")), na.rm = T),
+    three_hazard_hf_total  = rowSums(select(., starts_with("three_hazard")), na.rm = T)
     ) %>% 
-  relocate(total_hf_req, .before = req_No_surgery ) %>%
-  relocate(rwind_Yes_surgery, .after = rwind_No_surgery) %>% 
-  relocate(total_hf_rwind, .before = rwind_No_surgery ) %>%
-  relocate(total_hf_rflood, .before = rflood_No_surgery ) %>%
-  relocate(total_hf_two_hazard, .before = two_hazard_Yes_surgery) %>%
-  relocate(total_hf_three_hazard, .before = three_hazard_No_surgery)
+  relocate(req_hf_total, .before = req_no_surgery ) %>%
+  relocate(rwind_yes_surgery, .after = rwind_no_surgery) %>% 
+  relocate(rwind_hf_total, .before = rwind_no_surgery ) %>%
+  relocate(rflood_hf_total, .before = rflood_no_surgery ) %>%
+  relocate(two_hazard_hf_total, .before = two_hazard_yes_surgery) %>%
+  relocate(three_hazard_hf_total, .before = three_hazard_no_surgery)
 
-# Calculate all number of healthfacilities by country and amenity
-hf_summary_all <- hf_spat %>% 
-  as.data.frame() %>% 
-  group_by(iso3, SurgeryRm) %>%
-  summarize(n_hf = n()
-            ) %>% 
-  pivot_wider(
-    names_from = SurgeryRm,
-    values_from = n_hf,
-    values_fill = 0
-  ) %>% 
-  mutate(total_hf  = Yes + No)
+# Keep columns with all facilities by hazard zone for later.
+# hf_summary_hazard_zones <- hf_summary_surgery %>% 
+#   select(c(iso3, req_hf_total, rwind_hf_total,rflood_hf_total,
+#            two_hazard_hf_total, three_hazard_hf_total))
+
 
 # Merge both tables
-hf_in_hzones <- merge(hf_summary_all , hf_summary_surgery, by = "iso3")
-
-# -------- hasta aqui
+hf_in_hzones_surgery <- merge(hf_summary_all_surgery , hf_summary_surgery, by = "iso3")
 
 # Calculate the percentages
-hf_in_hzones <- hf_in_hzones %>%
+hf_in_hzones_surgery <- hf_in_hzones_surgery %>%
   mutate(
-    pct_req_Yes_surgery = (req_Yes_surgery  / clinic) * 100,
-    pct_req_No_surgery = (req_pol_hospital / hospital) * 100,
-    pct_rec_total_hf = (total_hf_req / total_hf)*100,
-    pct_rwind_clinic = (rwind_pol_clinic / clinic) * 100,
-    pct_rwind_hospital = (rwind_pol_hospital / hospital) * 100,
-    pct_rwind_total_hf = (total_hf_rwind / total_hf) * 100,
-    pct_rflood_clinic = (rflood_pol_clinic / clinic) * 100,
-    pct_rflood_hospital = (rflood_pol_hospital / hospital) * 100,
-    pct_rflood_total_hf = (total_hf_rflood / total_hf) * 100,
-    pct_two_hazard_clinic = (two_hazard_clinic / clinic) * 100,
-    pct_two_hazard_hospital = (two_hazard_hospital / hospital) * 100,
-    pct_two_hazard_total_hf = (total_hf_two_hazard/ total_hf) * 100,
-    pct_three_hazard_clinic = (three_hazard_clinic / clinic) * 100,
-    pct_three_hazard_hospital = (three_hazard_hospital / hospital) * 100,
-    pct_three_hazard_total_hf = (total_hf_three_hazard / total_hf) * 100,
-  )
+    pct_req_yes_surgery = (req_yes_surgery  / req_hf_total ) * 100,
+    pct_req_no_surgery = (req_no_surgery  / req_hf_total ) * 100,
+    pct_req_total_hf = (req_hf_total  / total_hf)*100,
+    pct_rwind_yes_surgery = (rwind_yes_surgery / rwind_hf_total ) * 100,
+    pct_rwind_no_surgery  = (rwind_no_surgery / rwind_hf_total ) * 100,
+    pct_rwind_total_hf = (rwind_hf_total / total_hf) * 100,
+    pct_rflood_yes_surgery = (rflood_yes_surgery/ rflood_hf_total ) * 100,
+    pct_rflood_no_surgery  = (rflood_no_surgery/ rflood_hf_total ) * 100,
+    pct_rflood_total_hf = (rflood_hf_total / total_hf) * 100,
+    pct_two_hazard_yes_surgery= (two_hazard_yes_surgery / two_hazard_hf_total) * 100,
+    pct_two_hazard_no_surgery  = (two_hazard_no_surgery / two_hazard_hf_total) * 100,
+    pct_two_hazard_total_hf = (two_hazard_hf_total/ total_hf) * 100,
+    pct_three_hazard_yes_surgery = (three_hazard_yes_surgery / three_hazard_hf_total) * 100,
+    pct_three_hazard_no_surgery  = (three_hazard_no_surgery / three_hazard_hf_total) * 100,
+    pct_three_hazard_total_hf = (three_hazard_hf_total / total_hf) * 100,
+  ) %>% 
+  mutate(across(everything(), ~replace_na(., 0)))
 
-# Export
-write.csv(hf_in_hzones, paste0(tables,"lac_hf_in_hzones.csv"), row.names = FALSE)
+# # Export into an excel table by_surgery tab
+# 
+# write.xlsx(
+#   x = hf_in_hzones_surgery,
+#   file = paste0(tables,"lac_hf_in_hzones.xlsx"),
+#   sheetName = "by_surgery"
+# )
+
+# 4.2 Intensive Services Availability in hazard prone areas ----
+# Calculate all number of health facilities by country and Intensive 
+hf_summary_all_intensive <- hf_spat %>% 
+  as.data.frame() %>% 
+  group_by(iso3, IntensiveR) %>%
+  summarize(total_hf = n()
+  ) %>% 
+  pivot_wider(
+    names_from = IntensiveR,
+    values_from = total_hf,
+    values_fill = 0
+  ) %>% 
+  mutate(total_hf = No + Yes) %>% 
+  rename(yes_intensive = Yes,
+         no_intensive = No) %>% 
+  relocate(total_hf, .before = no_intensive)
+
+
+hf_counts_intensive <- map_dfr(names(impact_zones), function(hazard_name) {
+  
+  # Get the polygon
+  hz <- impact_zones[[hazard_name]]
+  
+  # Spatial join: facilities intersecting this hazard zone
+  hf_in_zone <- st_join(hf_spat, hz, left = FALSE)
+  
+  # Add hazard name as a column
+  hf_in_zone$hazard_type <- hazard_name
+  
+  # Group and count
+  hf_in_zone %>%
+    st_drop_geometry() %>%
+    group_by(iso3, hazard_type, IntensiveR ) %>%
+    summarise(n_facilities = n(), .groups = "drop")
+})
+
+# Reshape to get number of HF by hazard zone and by amentity
+hf_summary_wide_intensive <- hf_counts_intensive %>%
+  pivot_wider(
+    names_from = c(hazard_type, IntensiveR),  # multiple columns into name
+    values_from = n_facilities,
+    values_fill = 0 
+  ) %>% 
+  rename_with(~ paste0(.x, "_intensive"), !iso3) %>% 
+  rename_with(tolower)
+
+
+# Calculate total of Health Facilities too
+hf_summary_intensive  <- hf_summary_wide_intensive  %>% 
+  mutate(
+    req_hf_total = rowSums(select(., starts_with("req")), na.rm = T),
+    rwind_hf_total = rowSums(select(., starts_with("rwind")), na.rm = T),
+    rflood_hf_total = rowSums(select(., starts_with("rflood")), na.rm = T),
+    two_hazard_hf_total= rowSums(select(., starts_with("two_hazard")), na.rm = T),
+    three_hazard_hf_total  = rowSums(select(., starts_with("three_hazard")), na.rm = T)
+  ) %>% 
+  relocate(req_hf_total, .before = req_no_intensive ) %>%
+  relocate(rwind_yes_intensive, .after = rwind_no_intensive) %>% 
+  relocate(rwind_hf_total, .before = rwind_no_intensive ) %>%
+  relocate(rflood_hf_total, .before = rflood_no_intensive ) %>%
+  relocate(two_hazard_hf_total, .before = two_hazard_yes_intensive) %>%
+  relocate(three_hazard_hf_total, .before = three_hazard_no_intensive)
+
+
+# Merge both tables
+hf_in_hzones_intensive <- merge(hf_summary_all_intensive , hf_summary_intensive, by = "iso3")
+
+# Calculate the percentages
+hf_in_hzones_intensive <- hf_in_hzones_intensive %>%
+  mutate(
+    pct_req_yes_intensive = (req_yes_intensive  / req_hf_total ) * 100,
+    pct_req_no_intensive = (req_no_intensive  / req_hf_total ) * 100,
+    pct_req_total_hf = (req_hf_total  / total_hf)*100,
+    pct_rwind_yes_intensive = (rwind_yes_intensive / rwind_hf_total ) * 100,
+    pct_rwind_no_intensive  = (rwind_no_intensive / rwind_hf_total ) * 100,
+    pct_rwind_total_hf = (rwind_hf_total / total_hf) * 100,
+    pct_rflood_yes_intensive = (rflood_yes_intensive/ rflood_hf_total ) * 100,
+    pct_rflood_no_intensive  = (rflood_no_intensive/ rflood_hf_total ) * 100,
+    pct_rflood_total_hf = (rflood_hf_total / total_hf) * 100,
+    pct_two_hazard_yes_intensive= (two_hazard_yes_intensive / two_hazard_hf_total) * 100,
+    pct_two_hazard_no_intensive  = (two_hazard_no_intensive / two_hazard_hf_total) * 100,
+    pct_two_hazard_total_hf = (two_hazard_hf_total/ total_hf) * 100,
+    pct_three_hazard_yes_intensive = (three_hazard_yes_intensive / three_hazard_hf_total) * 100,
+    pct_three_hazard_no_intensive  = (three_hazard_no_intensive / three_hazard_hf_total) * 100,
+    pct_three_hazard_total_hf = (three_hazard_hf_total / total_hf) * 100,
+  ) %>% 
+  mutate(across(everything(), ~replace_na(., 0)))
+
+# Export into an excel table by_surgery tab
+# wb <- loadWorkbook(paste0(tables,"lac_hf_in_hzones.xlsx"))
+# addWorksheet(wb, "by_intensive")
+# writeData(wb, sheet = "by_intensive", x = hf_in_hzones_intensive)
+# saveWorkbook(wb, paste0(tables,"lac_hf_in_hzones.xlsx"), overwrite = T)
+
+# 4.3 Emergency Services Availability in hazard prone areas ----
+print(table(hf_spat$EmergenRm))
+# All hospitals evaluated have emergency services so no point to analyse this
+
+
+
+
+# 4.4 Health facilities by Hospital Level in hazard prone areas ----
+hf_summary_all_hlevel <- hf_spat %>% 
+  as.data.frame() %>% 
+  group_by(iso3, H_Level) %>%
+  summarize(total_hf = n()
+  ) %>% 
+  pivot_wider(
+    names_from = H_Level,
+    values_from = total_hf,
+    values_fill = 0
+  ) %>% 
+  rename(big = `BIG - High medical specialties`,
+         medium = `MEDIUM -Two Specialty services`,
+         small = `SMALL - General surgery and open 24 hrs`) %>% 
+  mutate(total_hf = big + medium + small) %>% 
+  relocate(total_hf, .before = big)
+
+
+hf_counts_hlevel <- map_dfr(names(impact_zones), function(hazard_name) {
+  
+  # Get the polygon
+  hz <- impact_zones[[hazard_name]]
+  
+  # Spatial join: facilities intersecting this hazard zone
+  hf_in_zone <- st_join(hf_spat, hz, left = FALSE)
+  
+  # Add hazard name as a column
+  hf_in_zone$hazard_type <- hazard_name
+  
+  # Group and count
+  hf_in_zone %>%
+    st_drop_geometry() %>%
+    group_by(iso3, hazard_type, H_Level ) %>%
+    summarise(n_facilities = n(), .groups = "drop")
+})
+
+# Recode categories' names
+hf_counts_hlevel <- hf_counts_hlevel %>% 
+  mutate(H_Level = recode(H_Level,
+                          'BIG - High medical specialties' = "big",
+                          'MEDIUM -Two Specialty services' = "medium",
+                          'SMALL - General surgery and open 24 hrs' = "small"))
+
+# Reshape to get number of HF by hazard zone and by amentity
+hf_summary_wide_hlevel <- hf_counts_hlevel %>%
+  pivot_wider(
+    names_from = c(hazard_type, H_Level),  # multiple columns into name
+    values_from = n_facilities,
+    values_fill = 0 
+  ) %>% 
+  rename_with(~ paste0(.x, "_hlevel"), !iso3) %>% 
+  rename_with(tolower)
+
+
+# Calculate total of Health Facilities too
+hf_summary_hlevel  <- hf_summary_wide_hlevel  %>% 
+  mutate(three_hazard_big_hlevel = 0,
+         three_hazard_small_hlevel = 0) %>% 
+  mutate(
+    req_hf_total = rowSums(select(., starts_with("req")), na.rm = T),
+    rwind_hf_total = rowSums(select(., starts_with("rwind")), na.rm = T),
+    rflood_hf_total = rowSums(select(., starts_with("rflood")), na.rm = T),
+    two_hazard_hf_total= rowSums(select(., starts_with("two_hazard")), na.rm = T),
+    three_hazard_hf_total  = rowSums(select(., starts_with("three_hazard")), na.rm = T)
+  ) %>% 
+  relocate(req_hf_total, .before = req_big_hlevel) %>%
+  relocate(rwind_hf_total, .before = rwind_big_hlevel) %>%
+  relocate(rflood_hf_total, .before = rflood_big_hlevel) %>%
+  relocate(two_hazard_hf_total, .before = two_hazard_big_hlevel) %>%
+  relocate(three_hazard_hf_total, .before = three_hazard_big_hlevel) %>%
+  relocate(rwind_small_hlevel, .after = rwind_medium_hlevel)
+
+
+# Merge both tables
+hf_in_hzones_hlevel<- merge(hf_summary_all_hlevel , hf_summary_hlevel, by = "iso3")
+
+# Calculate the percentages
+hf_in_hzones_hlevel <- hf_in_hzones_hlevel %>%
+  mutate(
+    pct_req_big_hlevel = (req_big_hlevel / req_hf_total ) * 100,
+    pct_req_medium_hlevel = (req_medium_hlevel / req_hf_total ) * 100,
+    pct_req_small_hlevel  = (req_small_hlevel / req_hf_total ) * 100,
+    pct_req_total_hf = (req_hf_total / total_hf) * 100,
+    pct_rwind_big_hlevel = (rwind_big_hlevel / rwind_hf_total ) * 100,
+    pct_rwind_medium_hlevel = (rwind_medium_hlevel / rwind_hf_total ) * 100,
+    pct_rwind_small_hlevel  = (rwind_small_hlevel / rwind_hf_total ) * 100,
+    pct_rwind_total_hf = (rwind_hf_total / total_hf) * 100,
+    pct_rflood_big_hlevel = (rflood_big_hlevel / rflood_hf_total ) * 100,
+    pct_rflood_medium_hlevel = (rflood_medium_hlevel / rflood_hf_total ) * 100,
+    pct_rflood_small_hlevel  = (rflood_small_hlevel / rflood_hf_total ) * 100,
+    pct_rflood_total_hf = (rflood_hf_total / total_hf) * 100,
+    pct_two_hazard_big_hlevel= (two_hazard_big_hlevel / two_hazard_hf_total) * 100,
+    pct_two_hazard_medium_hlevel= (two_hazard_medium_hlevel / two_hazard_hf_total) * 100,
+    pct_two_hazard_small_hlevel  = (two_hazard_small_hlevel / two_hazard_hf_total) * 100,
+    pct_two_hazard_total_hf = (two_hazard_hf_total/ total_hf) * 100,
+    pct_three_hazard_big_hlevel = (three_hazard_big_hlevel / three_hazard_hf_total) * 100,
+    pct_three_hazard_medium_hlevel= (three_hazard_medium_hlevel / three_hazard_hf_total) * 100,
+    pct_three_hazard_small_hlevel  = (three_hazard_small_hlevel / three_hazard_hf_total) * 100,
+    pct_three_hazard_total_hf = (three_hazard_hf_total / total_hf) * 100,
+    ) %>% 
+  mutate(across(everything(), ~replace_na(., 0)))
+
+names(hf_in_hzones_hlevel)
+
+# 4.5 Export the three tables into into an excel table by_surgery tab ----
+
+# Rename variables so they make more sense in the tables and plots
+names(hf_in_hzones_surgery)
+ab_cnames <- ab %>% 
+  as.data.frame() %>% 
+  select(c(GID_0, NAME_0)) %>% 
+  rename(c_name = NAME_0,
+         iso3 = GID_0)
+# merge the 3 datasets with ab_cnames to get country names
+
+hf_in_hzones_surgery <- hf_in_hzones_surgery %>% 
+  merge(.,ab_cnames, by = "iso3") %>% 
+  relocate(c_name, .after = iso3)
+
+hf_in_hzones_intensive <- hf_in_hzones_intensive %>% 
+  merge(.,ab_cnames, by = "iso3") %>% 
+  relocate(c_name, .after = iso3)
+
+hf_in_hzones_hlevel <- hf_counts_hlevel %>% 
+  merge(.,ab_cnames, by = "iso3") %>% 
+  relocate(c_name, .after = iso3)
+
+# Export into a clean version of excel spreadsheet
+# Cleaning variable names
+names(hf_in_hzones_surgery)
+
+new_headers_surgery <- c(
+  "ISO Code",
+  "Country",
+  "Total Facilities",
+  "Non-Surgical Facilities",
+  "Surgical Facilities",
+  "Total Facilities (Earthquake Risk)",
+  "Non-Surgical (Earthquake Risk)",
+  "Surgical (Earthquake Risk)",
+  "Total Facilities (Hurricane Wind)",
+  "Non-Surgical (Hurricane Wind)",
+  "Surgical (Hurricane Wind)",
+  "Total Facilities (Riverine Flood)",
+  "Non-Surgical (Riverine Flood)",
+  "Surgical (Riverine Flood)",
+  "Total Facilities (2 Hazards)",
+  "Surgical (2 Hazards)",
+  "Non-Surgical (2 Hazards)",
+  "Total Facilities (3 Hazards)",
+  "Non-Surgical (3 Hazards)",
+  "Surgical (3 Hazards)",
+  "% Surgical (Earthquake Risk)",
+  "% Non-Surgical (Earthquake Risk)",
+  "% Total Facilities (Earthquake Risk)",
+  "% Surgical (Hurricane Wind)",
+  "% Non-Surgical (Hurricane Wind)",
+  "% Total Facilities (Hurricane Wind)",
+  "% Surgical (Riverine Flood)",
+  "% Non-Surgical (Riverine Flood)",
+  "% Total Facilities (Riverine Flood)",
+  "% Surgical (2 Hazards)",
+  "% Non-Surgical (2 Hazards)",
+  "% Total Facilities (2 Hazards)",
+  "% Surgical (3 Hazards)",
+  "% Non-Surgical (3 Hazards)",
+  "% Total Facilities (3 Hazards)"
+)
+
+hf_in_hzones_surgery_table <- hf_in_hzones_surgery %>% 
+  set_names(new_headers_surgery)
+
+# For intensive 
+names(hf_in_hzones_intensive)
+
+new_headers_intensive <- c(
+  "ISO Code",
+  "Country",
+  "Total Facilities",
+  "Facilities without ICU",
+  "Facilities with ICU",
+  "Total Facilities (Earthquake Risk)",
+  "Without ICU (Earthquake Risk)",
+  "With ICU (Earthquake Risk)",
+  "Total Facilities (Hurricane Wind)",
+  "Without ICU (Hurricane Wind)",
+  "With ICU (Hurricane Wind)",
+  "Total Facilities (Riverine Flood)",
+  "Without ICU (Riverine Flood)",
+  "With ICU (Riverine Flood)",
+  "Without ICU (2 Hazards)",
+  "Total Facilities (2 Hazards)",
+  "With ICU (2 Hazards)",
+  "Total Facilities (3 Hazards)",
+  "Without ICU (3 Hazards)",
+  "With ICU (3 Hazards)",
+  "% With ICU (Earthquake Risk)",
+  "% Without ICU (Earthquake Risk)",
+  "% Total Facilities (Earthquake Risk)",
+  "% With ICU (Hurricane Wind)",
+  "% Without ICU (Hurricane Wind)",
+  "% Total Facilities (Hurricane Wind)",
+  "% With ICU (Riverine Flood)",
+  "% Without ICU (Riverine Flood)",
+  "% Total Facilities (Riverine Flood)",
+  "% With ICU (2 Hazards)",
+  "% Without ICU (2 Hazards)",
+  "% Total Facilities (2 Hazards)",
+  "% With ICU (3 Hazards)",
+  "% Without ICU (3 Hazards)",
+  "% Total Facilities (3 Hazards)"
+)
+
+hf_in_hzones_intensive_table <- hf_in_hzones_intensive %>% 
+  set_names(new_headers_intensive )
+
+# For Hospital level
+names(hf_in_hzones_hlevel)
+
+new_headers_hlevel <- c(
+  "ISO Code",
+  "Total Facilities",
+  "Large Hospitals",
+  "Medium Hospitals",
+  "Small Hospitals",
+  "Total Facilities (Earthquake Risk)",
+  "Large (Earthquake Risk)",
+  "Medium (Earthquake Risk)",
+  "Small (Earthquake Risk)",
+  "Total Facilities (Hurricane Wind)",
+  "Large (Hurricane Wind)",
+  "Medium (Hurricane Wind)",
+  "Small (Hurricane Wind)",
+  "Total Facilities (Riverine Flood)",
+  "Large (Riverine Flood)",
+  "Medium (Riverine Flood)",
+  "Small (Riverine Flood)",
+  "Total Facilities (2 Hazards)",
+  "Large (2 Hazards)",
+  "Medium (2 Hazards)",
+  "Small (2 Hazards)",
+  "Medium (3 Hazards)",
+  "Total Facilities (3 Hazards)",
+  "Large (3 Hazards)",
+  "Small (3 Hazards)",
+  "% Large (Earthquake Risk)",
+  "% Medium (Earthquake Risk)",
+  "% Small (Earthquake Risk)",
+  "% Total Facilities (Earthquake Risk)",
+  "% Large (Hurricane Wind)",
+  "% Medium (Hurricane Wind)",
+  "% Small (Hurricane Wind)",
+  "% Total Facilities (Hurricane Wind)",
+  "% Large (Riverine Flood)",
+  "% Medium (Riverine Flood)",
+  "% Small (Riverine Flood)",
+  "% Total Facilities (Riverine Flood)",
+  "% Large (2 Hazards)",
+  "% Medium (2 Hazards)",
+  "% Small (2 Hazards)",
+  "% Total Facilities (2 Hazards)",
+  "% Large (3 Hazards)",
+  "% Medium (3 Hazards)",
+  "% Small (3 Hazards)",
+  "% Total Facilities (3 Hazards)"
+)
+
+hf_in_hzones_hlevel_table <- hf_in_hzones_hlevel %>% 
+  set_names(new_headers_hlevel)
+
+
+
+
+wb <- createWorkbook()
+# Your vector of sheet names
+sheet_names <- c("by_surgery", "by_intensive", "by_hosp_level")
+
+# Loop through the vector and add one sheet at a time
+for(sheet in sheet_names){
+  addWorksheet(wb, sheet)
+}
+writeData(wb, 
+          sheet = "by_surgery", 
+          x = hf_in_hzones_surgery)
+
+writeData(wb, 
+          sheet = "by_hosp_level", 
+          x = hf_in_hzones_hlevel)
+
+writeData(wb, 
+          sheet = "by_intensive", 
+          x = hf_in_hzones_intensive)
+
+# Save workbook
+saveWorkbook(wb, paste0(tables,"lac_hf_paho_in_hzones.xlsx"), overwrite = T)
+
+# 5. Prepare clean and tidy Excell table to include 
+
 
 # 6. Plot some graphs to better explain the trends
 # Prepare tables too
