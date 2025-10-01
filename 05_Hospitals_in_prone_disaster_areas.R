@@ -491,7 +491,7 @@ hf_in_hzones_intensive <- hf_in_hzones_intensive %>%
   merge(.,ab_cnames, by = "iso3") %>% 
   relocate(c_name, .after = iso3)
 
-hf_in_hzones_hlevel <- hf_counts_hlevel %>% 
+hf_in_hzones_hlevel <- hf_in_hzones_hlevel %>% 
   merge(.,ab_cnames, by = "iso3") %>% 
   relocate(c_name, .after = iso3)
 
@@ -589,6 +589,7 @@ names(hf_in_hzones_hlevel)
 
 new_headers_hlevel <- c(
   "ISO Code",
+  "Country",
   "Total Facilities",
   "Large Hospitals",
   "Medium Hospitals",
@@ -638,12 +639,39 @@ new_headers_hlevel <- c(
 hf_in_hzones_hlevel_table <- hf_in_hzones_hlevel %>% 
   set_names(new_headers_hlevel)
 
+# Separate tables by subregion
+# Separate country codes for Latin America Discuss classification this is from UNSD
+#https://unstats.un.org/unsd/methodology/m49/
 
+car_count_list <-  c(
+  "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUW",
+  "DMA", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
+  "LCA", "MAF", "VCT", "SXM", "SUR", "TTO", "TCA", "VIR", "GUF", "GUY"
+)
 
+hf_in_zones_surgery_la_table <- hf_in_hzones_surgery_table %>% 
+  filter(!(`ISO Code` %in% car_count_list))
+hf_in_zones_surgery_car_table <- hf_in_hzones_surgery_table %>% 
+  filter(`ISO Code` %in% car_count_list)
+
+hf_in_hzones_intensive_la_table <- hf_in_hzones_intensive_table %>% 
+  filter(!(`ISO Code` %in% car_count_list))
+hf_in_hzones_intensive_car_table <- hf_in_hzones_intensive_table %>% 
+  filter(`ISO Code` %in% car_count_list)
+
+hf_in_hzones_hlevel_la_table <- hf_in_hzones_hlevel_table %>% 
+  filter(!(`ISO Code` %in% car_count_list))
+hf_in_hzones_hlevel_car_table <- hf_in_hzones_hlevel_table %>% 
+  filter(`ISO Code` %in% car_count_list)
+
+# Export into Excel spreadsheet
 
 wb <- createWorkbook()
 # Your vector of sheet names
-sheet_names <- c("by_surgery", "by_intensive", "by_hosp_level")
+sheet_names <- c("by_surgery", "by_surgery_la","by_surgery_car", 
+                 "by_intensive", "by_intensive_la", "by_intensive_car",
+                 "by_hosp_level", "by_hosp_level_la", "by_hosp_level_car"
+                 )
 
 # Loop through the vector and add one sheet at a time
 for(sheet in sheet_names){
@@ -651,20 +679,45 @@ for(sheet in sheet_names){
 }
 writeData(wb, 
           sheet = "by_surgery", 
-          x = hf_in_hzones_surgery)
+          x = hf_in_hzones_surgery_table)
 
 writeData(wb, 
-          sheet = "by_hosp_level", 
-          x = hf_in_hzones_hlevel)
+          sheet = "by_surgery_la", 
+          x = hf_in_hzones_surgery_la_table)
+
+writeData(wb, 
+          sheet = "by_surgery_car", 
+          x = hf_in_hzones_surgery_car_table)
+
 
 writeData(wb, 
           sheet = "by_intensive", 
-          x = hf_in_hzones_intensive)
+          x = hf_in_hzones_intensive_table)
+
+writeData(wb, 
+          sheet = "by_intensive_la", 
+          x = hf_in_hzones_intensive_la_table)
+writeData(wb, 
+          sheet = "by_intensive_car", 
+          x = hf_in_hzones_intensive_car_table)
+
+
+writeData(wb, 
+          sheet = "by_hosp_level", 
+          x = hf_in_hzones_hlevel_table)
+
+writeData(wb, 
+          sheet = "by_hosp_level_la", 
+          x = hf_in_hzones_hlevel_la_table)
+
+writeData(wb, 
+          sheet = "by_hosp_level_car", 
+          x = hf_in_hzones_hlevel_car_table)
 
 # Save workbook
 saveWorkbook(wb, paste0(tables,"lac_hf_paho_in_hzones.xlsx"), overwrite = T)
 
-# 5. Prepare clean and tidy Excell table to include 
+
 
 
 # 6. Plot some graphs to better explain the trends
