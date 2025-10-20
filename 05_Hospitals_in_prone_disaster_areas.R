@@ -21,6 +21,27 @@ library(foreign)
 hf_table <- read.dbf(paste0(layers,"hf_paho/emergency_hospitals_2021.dbf"))
 str(hf_table)
 
+# Cleaning of the database.
+# identify duplicates in Venezuela record (PAHO_ID VE-P-69505)
+hf_table <- hf_table %>% 
+  filter(!(PAHO_ID == "VE-P-69505" & SurgeryRm == 'No'))
+# Identify records with duplicate coordinates in Brasil
+dup_coord <- hf_table %>% 
+  group_by(across(all_of(c("Longitude", "Latitude")))) %>%
+  filter(n() > 1) %>% 
+  ungroup()
+
+df_bra <- hf_table %>% 
+  filter(CTRYISOA3 == "BRA")
+
+df_other<- hf_table %>% 
+  filter(CTRYISOA3 != 'BRA')
+
+df_bra_unique <- df_bra %>% 
+  distinct(Latitude, Longitude, .keep_all = TRUE)
+
+hf_table <- bind_rows(df_bra_unique, df_other)
+
 # Check categories
 table(hf_table$H_Level)
 table(hf_table$H_Sector)
@@ -649,9 +670,9 @@ car_count_list <-  c(
   "LCA", "MAF", "VCT", "SXM", "SUR", "TTO", "TCA", "VIR", "GUF", "GUY"
 )
 
-hf_in_zones_surgery_la_table <- hf_in_hzones_surgery_table %>% 
+hf_in_hzones_surgery_la_table <- hf_in_hzones_surgery_table %>% 
   filter(!(`ISO Code` %in% car_count_list))
-hf_in_zones_surgery_car_table <- hf_in_hzones_surgery_table %>% 
+hf_in_hzones_surgery_car_table <- hf_in_hzones_surgery_table %>% 
   filter(`ISO Code` %in% car_count_list)
 
 hf_in_hzones_intensive_la_table <- hf_in_hzones_intensive_table %>% 
@@ -829,3 +850,6 @@ plot_hf_per_car
 
 ggsave(paste0(plots,"plot_hf_per_car.png"), plot = plot_hf_per_car, 
        width = 10, height = 6, dpi = 300, bg = "white")
+
+
+### Include french Guyana as is it 0% for all the results
