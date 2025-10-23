@@ -350,7 +350,7 @@ for (file in files){
   r_rep_sum <- cellStats(raster(r_rep),stat='sum')
   pop_ratio <- r_sum/r_rep_sum
   
-  # Ressample to 1km resoultuion
+  # Resample to 1km resolution
   r_res <- rast()
   ext(r_res) <- ext(r_rep)
   crs(r_res) <- crs(r_rep)

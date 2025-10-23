@@ -739,117 +739,117 @@ writeData(wb,
 saveWorkbook(wb, paste0(tables,"lac_hf_paho_in_hzones.xlsx"), overwrite = T)
 
 
-
-
-# 6. Plot some graphs to better explain the trends
-# Prepare tables too
-country_codes <- data.frame(
-  ISO3 = c("ABW", "AIA", "ARG", "ATG", "BHS", "BLZ", "BMU", "BOL", "BRA", "BRB",
-           "CHL", "COL", "CRI", "CUB", "CUW", "CYM", "DMA", "DOM", "ECU", "GLP",
-           "GRD", "GTM", "GUF", "GUY", "HND", "HTI", "JAM", "KNA", "LCA", "MEX",
-           "MSR", "MTQ", "NIC", "PAN", "PER", "PRI", "PRY", "SLV", "SUR", "TCA",
-           "TTO", "URY", "VCT", "VEN", "VGB"),
-  Country = c("Aruba", "Anguilla", "Argentina", "Antigua and Barbuda", "Bahamas",
-              "Belize", "Bermuda", "Bolivia", "Brazil", "Barbados", "Chile", "Colombia",
-              "Costa Rica", "Cuba", "Curaçao", "Cayman Islands", "Dominica", "Dominican Republic",
-              "Ecuador", "Guadeloupe", "Grenada", "Guatemala", "French Guiana", "Guyana",
-              "Honduras", "Haiti", "Jamaica", "Saint Kitts and Nevis", "Saint Lucia",
-              "Mexico", "Montserrat", "Martinique", "Nicaragua", "Panama", "Peru", "Puerto Rico",
-              "Paraguay", "El Salvador", "Suriname", "Turks and Caicos Islands", "Trinidad and Tobago",
-              "Uruguay", "Saint Vincent and the Grenadines", "Venezuela", "British Virgin Islands")
-)
-
-# Separate country codes for Latin America Discuss classification this is from UNSD
-#https://unstats.un.org/unsd/methodology/m49/
-
-car_count_list <-  c(
-  "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUW",
-  "DMA", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
-  "LCA", "MAF", "VCT", "SXM", "SUR", "TTO", "TCA", "VIR", "GUF", "GUY"
-)
-
-hf_long_pct <- hf_in_hzones %>%
-  select(iso3, starts_with("pct_")) %>%
-  select(iso3, ends_with("total_hf")) %>% 
-  pivot_longer(
-    cols = starts_with("pct_"),
-    names_to = "hazard_type",
-    values_to = "percentage"
-  ) %>%
-  mutate(hazard_type = gsub("pct_hf_", "", hazard_type)) %>%   # clean names
-  mutate(iso3 = toupper(iso3))
-
-hf_long_pct_lat <- hf_long_pct %>% 
-  filter(!(iso3 %in% car_count_list))
-
-hf_long_pct_car <- hf_long_pct %>% 
-  filter(iso3 %in% car_count_list)
-
-plot_hf_per_lat <- ggplot(hf_long_pct_lat, aes(x = iso3, y = percentage, fill = hazard_type)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(
-    title = "Percentage of Health Facilities by Hazard Prone Zone - Latin America Region (%)",
-    x = "Country (ISO3)",
-    y = "Percentage",
-    fill = "Hazard Type"
-  ) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)
-  ) +
-  scale_fill_manual(
-    values = c(
-      pct_rec_total_hf = "#bf9000",
-      pct_rwind_total_hf  = "#34a853",
-      pct_rflood_total_hf = "#4a86e8",
-      pct_two_hazard_total_hf = "#9900ff",
-      pct_three_hazard_total_hf  = "#ff6d01"
-    ),
-    labels = c(
-      pct_rec_total_hf = "Health Facilities - Earthquake zone",
-      pct_rwind_total_hf = "Health Facilities - Hurricane winds zone",
-      pct_rflood_total_hf = "Health Facilities - Riverine floods zone",
-      pct_two_hazard_total_hf = "Health Facilities - Two Hazards zone",
-      pct_three_hazard_total_hf = "Health Facilities - Three Hazards zone"
-    )
-  )
-plot_hf_per_lat
-
-ggsave(paste0(plots,"plot_hf_per_lat.png"), plot = plot_hf_per_lat, 
-       width = 10, height = 6, dpi = 300, bg = "white")
-
-plot_hf_per_car <- ggplot(hf_long_pct_car, aes(x = iso3, y = percentage, fill = hazard_type)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(
-    title = "Percentage of Health Facilities by Hazard Prone Zone - Caribbean Region (%)",
-    x = "Country (ISO3)",
-    y = "Percentage",
-    fill = "Hazard Type"
-  ) +
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)
-  ) +
-  scale_fill_manual(
-    values = c(
-      pct_rec_total_hf = "#bf9000",
-      pct_rwind_total_hf  = "#34a853",
-      pct_rflood_total_hf = "#4a86e8",
-      pct_two_hazard_total_hf = "#9900ff",
-      pct_three_hazard_total_hf  = "#ff6d01"
-    ),
-    labels = c(
-      pct_rec_total_hf = "Health Facilities - Earthquake zone",
-      pct_rwind_total_hf = "Health Facilities - Hurricane winds zone",
-      pct_rflood_total_hf = "Health Facilities - Riverine floods zone",
-      pct_two_hazard_total_hf = "Health Facilities - Two Hazards zone",
-      pct_three_hazard_total_hf = "Health Facilities - Three Hazards zone"
-    )
-  )
-plot_hf_per_car
-
-ggsave(paste0(plots,"plot_hf_per_car.png"), plot = plot_hf_per_car, 
-       width = 10, height = 6, dpi = 300, bg = "white")
-
-
-### Include french Guyana as is it 0% for all the results
+# 
+# 
+# # 6. Plot some graphs to better explain the trends
+# # Prepare tables too
+# country_codes <- data.frame(
+#   ISO3 = c("ABW", "AIA", "ARG", "ATG", "BHS", "BLZ", "BMU", "BOL", "BRA", "BRB",
+#            "CHL", "COL", "CRI", "CUB", "CUW", "CYM", "DMA", "DOM", "ECU", "GLP",
+#            "GRD", "GTM", "GUF", "GUY", "HND", "HTI", "JAM", "KNA", "LCA", "MEX",
+#            "MSR", "MTQ", "NIC", "PAN", "PER", "PRI", "PRY", "SLV", "SUR", "TCA",
+#            "TTO", "URY", "VCT", "VEN", "VGB"),
+#   Country = c("Aruba", "Anguilla", "Argentina", "Antigua and Barbuda", "Bahamas",
+#               "Belize", "Bermuda", "Bolivia", "Brazil", "Barbados", "Chile", "Colombia",
+#               "Costa Rica", "Cuba", "Curaçao", "Cayman Islands", "Dominica", "Dominican Republic",
+#               "Ecuador", "Guadeloupe", "Grenada", "Guatemala", "French Guiana", "Guyana",
+#               "Honduras", "Haiti", "Jamaica", "Saint Kitts and Nevis", "Saint Lucia",
+#               "Mexico", "Montserrat", "Martinique", "Nicaragua", "Panama", "Peru", "Puerto Rico",
+#               "Paraguay", "El Salvador", "Suriname", "Turks and Caicos Islands", "Trinidad and Tobago",
+#               "Uruguay", "Saint Vincent and the Grenadines", "Venezuela", "British Virgin Islands")
+# )
+# 
+# # Separate country codes for Latin America Discuss classification this is from UNSD
+# #https://unstats.un.org/unsd/methodology/m49/
+# 
+# car_count_list <-  c(
+#   "AIA", "ATG", "ABW", "BHS", "BMU", "BRB", "BLZ", "BES", "VGB", "CYM", "CUW",
+#   "DMA", "GRD", "GLP", "HTI", "JAM", "MTQ", "MSR", "PRI", "BLM", "KNA",
+#   "LCA", "MAF", "VCT", "SXM", "SUR", "TTO", "TCA", "VIR", "GUF", "GUY"
+# )
+# 
+# hf_long_pct <- hf_in_hzones %>%
+#   select(iso3, starts_with("pct_")) %>%
+#   select(iso3, ends_with("total_hf")) %>% 
+#   pivot_longer(
+#     cols = starts_with("pct_"),
+#     names_to = "hazard_type",
+#     values_to = "percentage"
+#   ) %>%
+#   mutate(hazard_type = gsub("pct_hf_", "", hazard_type)) %>%   # clean names
+#   mutate(iso3 = toupper(iso3))
+# 
+# hf_long_pct_lat <- hf_long_pct %>% 
+#   filter(!(iso3 %in% car_count_list))
+# 
+# hf_long_pct_car <- hf_long_pct %>% 
+#   filter(iso3 %in% car_count_list)
+# 
+# plot_hf_per_lat <- ggplot(hf_long_pct_lat, aes(x = iso3, y = percentage, fill = hazard_type)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   labs(
+#     title = "Percentage of Health Facilities by Hazard Prone Zone - Latin America Region (%)",
+#     x = "Country (ISO3)",
+#     y = "Percentage",
+#     fill = "Hazard Type"
+#   ) +
+#   scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1)
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       pct_rec_total_hf = "#bf9000",
+#       pct_rwind_total_hf  = "#34a853",
+#       pct_rflood_total_hf = "#4a86e8",
+#       pct_two_hazard_total_hf = "#9900ff",
+#       pct_three_hazard_total_hf  = "#ff6d01"
+#     ),
+#     labels = c(
+#       pct_rec_total_hf = "Health Facilities - Earthquake zone",
+#       pct_rwind_total_hf = "Health Facilities - Hurricane winds zone",
+#       pct_rflood_total_hf = "Health Facilities - Riverine floods zone",
+#       pct_two_hazard_total_hf = "Health Facilities - Two Hazards zone",
+#       pct_three_hazard_total_hf = "Health Facilities - Three Hazards zone"
+#     )
+#   )
+# plot_hf_per_lat
+# 
+# ggsave(paste0(plots,"plot_hf_per_lat.png"), plot = plot_hf_per_lat, 
+#        width = 10, height = 6, dpi = 300, bg = "white")
+# 
+# plot_hf_per_car <- ggplot(hf_long_pct_car, aes(x = iso3, y = percentage, fill = hazard_type)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   labs(
+#     title = "Percentage of Health Facilities by Hazard Prone Zone - Caribbean Region (%)",
+#     x = "Country (ISO3)",
+#     y = "Percentage",
+#     fill = "Hazard Type"
+#   ) +
+#   scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1)
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       pct_rec_total_hf = "#bf9000",
+#       pct_rwind_total_hf  = "#34a853",
+#       pct_rflood_total_hf = "#4a86e8",
+#       pct_two_hazard_total_hf = "#9900ff",
+#       pct_three_hazard_total_hf  = "#ff6d01"
+#     ),
+#     labels = c(
+#       pct_rec_total_hf = "Health Facilities - Earthquake zone",
+#       pct_rwind_total_hf = "Health Facilities - Hurricane winds zone",
+#       pct_rflood_total_hf = "Health Facilities - Riverine floods zone",
+#       pct_two_hazard_total_hf = "Health Facilities - Two Hazards zone",
+#       pct_three_hazard_total_hf = "Health Facilities - Three Hazards zone"
+#     )
+#   )
+# plot_hf_per_car
+# 
+# ggsave(paste0(plots,"plot_hf_per_car.png"), plot = plot_hf_per_car, 
+#        width = 10, height = 6, dpi = 300, bg = "white")
+# 
+# 
+# ### Include french Guyana as is it 0% for all the results
